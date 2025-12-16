@@ -122,47 +122,49 @@ def main():
     # MLflow tracking
     mlflow.set_experiment("ML_Training_CI")
     
-    with mlflow.start_run():
-        # Log parameters
+    project_run_id = os.getenv("MLFLOW_RUN_ID")
+    
+    if mlflow.active_run() is None:
+        if project_run_id:
+            mlflow.start_run(run_id=project_run_id)
+        else:
+            mlflow.start_run()
+
+    try:
+    # Log parameters
         mlflow.log_param("data_path", args.data_path)
         mlflow.log_param("test_size", args.test_size)
         mlflow.log_param("random_state", args.random_state)
         
-        # Load data (CSV atau folder preprocessing)
         loaded = load_data(args.data_path)
-
-        # Jika folder preprocessing -> langsung pakai split yang sudah ada
+        
         if isinstance(loaded, tuple) and len(loaded) == 4:
             X_train, X_test, y_train, y_test = loaded
         else:
             df = loaded
             X_train, X_test, y_train, y_test = preprocess_data(
-                df, args.test_size, args.random_state
-            )
-        
-        # Train
+            df, args.test_size, args.random_state
+        )
         model = train_model(X_train, y_train)
-        
-        # Evaluate
         accuracy, y_pred = evaluate_model(model, X_test, y_test)
         
-        # Log metrics
         mlflow.log_metric("accuracy", accuracy)
         mlflow.log_metric("train_samples", int(len(X_train)))
         mlflow.log_metric("test_samples", int(len(X_test)))
         
-        # Log model
         mlflow.sklearn.log_model(model, "model")
         
-        # Save artifacts
         model_path = save_model_artifacts(model, args.model_name)
         mlflow.log_artifact(model_path)
         
         print(f"\n{'='*50}")
-        print(f"Training completed successfully!")
+        print("Training completed successfully!")
         print(f"Accuracy: {accuracy:.4f}")
         print(f"Model saved: {model_path}")
         print(f"{'='*50}\n")
+    finally:
+        if not project_run_id:
+            mlflow.end_run()
 
 if __name__ == "__main__":
     main()
