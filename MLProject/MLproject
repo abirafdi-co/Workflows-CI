@@ -1,40 +1,13 @@
-name: Telco_Churn_Prediction_CI
+name: ML_Training_Project
+
 conda_env: conda.yaml
-docker_env:
-  image: python:3.12.7-slim
 
 entry_points:
   main:
     parameters:
-      data_path:
-        type: str
-        default: "./"
-        description: "Path to data (CSV file or preprocessing folder)"
-      model_name:
-        type: str
-        default: "telco_model"
-        description: "Name for the model"
-      test_size:
-        type: float
-        default: 0.2
-        description: "Test size ratio (0.0-1.0)"
-      random_state:
-        type: int
-        default: 42
-        description: "Random seed for reproducibility"
-      n_estimators:
-        type: int
-        default: 100
-        description: "Number of trees in RandomForest"
-      max_depth:
-        type: int
-        default: 10
-        description: "Max depth of trees"
-    command: |
-      python modelling.py \
-        --data_path {data_path} \
-        --model_name {model_name} \
-        --test_size {test_size} \
-        --random_state {random_state} \
-        --n_estimators {n_estimators} \
-        --max_depth {max_depth}
+      # Folder hasil preprocessing (berisi X_train.npy, X_test.npy, y_train.csv, y_test.csv)
+      data_path: {type: string, default: "telco_preprocessing"}
+      model_name: {type: string, default: "model"}
+      test_size: {type: float, default: 0.2}
+      random_state: {type: int, default: 42}
+    command: "python modelling.py --data_path {data_path} --model_name {model_name} --test_size {test_size} --random_state {random_state}"
