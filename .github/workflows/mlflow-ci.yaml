@@ -48,7 +48,7 @@ jobs:
           conda activate ml_training_env
           # Run the MLflow Project located in ./MLProject
           mlflow run MLProject \
-            -P data_path="MLProject/telco_preprocessing" \
+            -P data_path="telco_preprocessing" \
             -P model_name="model_ci" \
             -P test_size=0.2 \
             -P random_state=42
