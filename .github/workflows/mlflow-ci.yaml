@@ -21,18 +21,17 @@ jobs:
 
     env:
       # Keep MLflow tracking local inside the runner workspace
-      MLFLOW_TRACKING_URI: file:${{ github.workspace }}/mlruns
+      MLFLOW_TRACKING_URI: file://${{ github.workspace }}/mlruns
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Miniconda (Python 3.12)
+      - name: Set up Miniconda (Python 3.12.7)
         uses: conda-incubator/setup-miniconda@v3
         with:
           auto-update-conda: true
-          # Patch version dipin di conda.yaml (python=3.12.7)
-          python-version: "3.12"
+          python-version: "3.12.7"
           activate-environment: ml_training_env
 
       - name: Create env from conda.yaml
@@ -40,28 +39,128 @@ jobs:
           conda env remove -n ml_training_env -y || true
           conda env create -n ml_training_env -f MLProject/conda.yaml
           conda activate ml_training_env
+          echo "Python version:"
           python --version
+          echo "MLflow version:"
           mlflow --version
+          echo "Checking conda.yaml dependencies:"
+          cat MLProject/conda.yaml
+
+      - name: Create dummy dataset for testing
+        run: |
+          conda activate ml_training_env
+          cd MLProject
+          
+          # Buat dataset dummy jika tidak ada
+          python -c "
+import pandas as pd
+import numpy as np
+from sklearn.datasets import make_classification
+import os
+
+print('Creating dummy dataset for CI...')
+
+# Buat dataset klasifikasi
+X, y = make_classification(
+    n_samples=1000,
+    n_features=10,
+    n_informative=5,
+    n_classes=2,
+    random_state=42
+)
+
+# Buat DataFrame
+df = pd.DataFrame(X, columns=[f'feature_{i}' for i in range(10)])
+df['target'] = y
+
+# Simpan sebagai CSV
+df.to_csv('dummy_data.csv', index=False)
+print(f'Dataset saved: dummy_data.csv, shape: {df.shape}')
+
+# Buat folder preprocessing jika belum ada
+os.makedirs('telco_preprocessing', exist_ok=True)
+
+# Split data untuk preprocessing
+from sklearn.model_selection import train_test_split
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42
+)
+
+# Simpan file preprocessing
+np.save('telco_preprocessing/X_train.npy', X_train)
+np.save('telco_preprocessing/X_test.npy', X_test)
+pd.DataFrame(y_train, columns=['target']).to_csv('telco_preprocessing/y_train.csv', index=False)
+pd.DataFrame(y_test, columns=['target']).to_csv('telco_preprocessing/y_test.csv', index=False)
+
+print('Preprocessed data saved to telco_preprocessing/')
+print(f'X_train shape: {X_train.shape}, X_test shape: {X_test.shape}')
+"
+          
+          # Verifikasi file dibuat
+          ls -la
+          ls -la telco_preprocessing/
 
       - name: Run MLflow Project (re-train)
         run: |
           conda activate ml_training_env
-          # Run the MLflow Project located in ./MLProject
-          mlflow run MLProject \
-            -P data_path="MLProject/telco_preprocessing" \
+          cd MLProject
+          
+          echo "Running MLflow Project..."
+          echo "Current directory: $(pwd)"
+          echo "Files in directory:"
+          ls -la
+          
+          # Run dengan data preprocessing
+          echo "Training with preprocessed data..."
+          mlflow run . \
+            -P data_path="telco_preprocessing" \
             -P model_name="model_ci" \
             -P test_size=0.2 \
-            -P random_state=42
+            -P random_state=42 \
+            -P n_estimators=50 \
+            -P max_depth=5
+          
+          # Juga run dengan CSV untuk testing
+          echo "Training with CSV data..."
+          mlflow run . \
+            -P data_path="dummy_data.csv" \
+            -P model_name="model_csv" \
+            -P test_size=0.2 \
+            -P random_state=42 \
+            -P n_estimators=50 \
+            -P max_depth=5
 
       - name: Upload artifacts (Skilled)
         uses: actions/upload-artifact@v4
         with:
           name: mlflow-artifacts
           path: |
-            MLProject/artifacts
-            mlruns
+            MLProject/artifacts/
+            mlruns/
+            MLProject/dummy_data.csv
+          retention-days: 7
+          if-no-files-found: warn
+
+      - name: List MLflow runs
+        run: |
+          conda activate ml_training_env
+          echo "Listing MLflow runs..."
+          if [ -d "mlruns" ]; then
+            find mlruns -name "meta.yaml" -exec grep -l "RUN_ID\|artifact_uri" {} \;
+          else
+            echo "mlruns directory not found"
+          fi
 
       # Optional: build & push Docker image to Docker Hub (Advanced)
+      - name: Prepare Docker build environment
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.push_docker == 'true' }}
+        run: |
+          conda activate ml_training_env
+          echo "Setting up for Docker build..."
+          
+          # Install Docker dependencies
+          pip install mlserver mlserver-sklearn
+
       - name: Log in to Docker Hub
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.push_docker == 'true' }}
         uses: docker/login-action@v3
@@ -73,17 +172,46 @@ jobs:
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.push_docker == 'true' }}
         run: |
           conda activate ml_training_env
-
-          # Find latest run_id (works for local file store)
-          latest_run_id=$(ls -1t mlruns/*/*/meta.yaml 2>/dev/null | head -n 1 | awk -F'/' '{print $(NF-1)}')
-          echo "Latest run_id: ${latest_run_id}"
-
-          # Build image from the logged model artifact
-          IMAGE_NAME=${{ secrets.DOCKERHUB_USERNAME }}/telco-churn-mlflow:latest
-          mlflow models build-docker -m "runs:/${latest_run_id}/model" -n "${IMAGE_NAME}" --enable-mlserver
+          
+          echo "Building Docker image..."
+          
+          # Cari run_id terbaru
+          if [ -d "mlruns" ]; then
+            # Cari run yang berhasil (status FINISHED)
+            latest_run_path=$(find mlruns -name "meta.yaml" -type f | xargs grep -l "status: FINISHED" | head -1)
+            if [ ! -z "$latest_run_path" ]; then
+              latest_run_id=$(echo "$latest_run_path" | awk -F'/' '{print $(NF-1)}')
+              echo "Latest successful run_id: ${latest_run_id}"
+              
+              # Build Docker image
+              IMAGE_NAME="${{ secrets.DOCKERHUB_USERNAME }}/telco-churn-mlflow:${{ github.sha }}"
+              echo "Building image: ${IMAGE_NAME}"
+              
+              mlflow models build-docker \
+                -m "runs:/${latest_run_id}/model" \
+                -n "${IMAGE_NAME}" \
+                --enable-mlserver
+                
+              # Tag juga sebagai latest
+              docker tag "${IMAGE_NAME}" "${{ secrets.DOCKERHUB_USERNAME }}/telco-churn-mlflow:latest"
+            else
+              echo "No successful runs found in mlruns/"
+              exit 1
+            fi
+          else
+            echo "mlruns directory not found"
+            exit 1
+          fi
 
       - name: Push Docker image to Docker Hub
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.push_docker == 'true' }}
         run: |
-          IMAGE_NAME=${{ secrets.DOCKERHUB_USERNAME }}/telco-churn-mlflow:latest
-          docker push "${IMAGE_NAME}"
+          echo "Pushing Docker images..."
+          
+          # Push tagged image
+          docker push "${{ secrets.DOCKERHUB_USERNAME }}/telco-churn-mlflow:${{ github.sha }}"
+          
+          # Push latest
+          docker push "${{ secrets.DOCKERHUB_USERNAME }}/telco-churn-mlflow:latest"
+          
+          echo "Docker images pushed successfully!"

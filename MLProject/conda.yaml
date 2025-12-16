@@ -1,15 +1,18 @@
-name: ml_training_env
+name: telco-churn
 channels:
   - conda-forge
   - defaults
 dependencies:
   - python=3.12.7
   - pip
+  - numpy
+  - pandas
+  - scikit-learn
   - pip:
-      - mlflow==2.19.0
-      - scikit-learn
-      - pandas
-      - numpy
-      - matplotlib
-      - seaborn
-      - requests
+    - mlflow=2.19.0
+    - pickle5
+    - mlserver
+    - mlserver-sklearn
+    - mlflow-skinny
+    - pyarrow
+    - boto3
