@@ -17,29 +17,30 @@ jobs:
         uses: conda-incubator/setup-miniconda@v3
         with:
           auto-activate-base: false
-          activate-environment: telco_churn_env
-          environment-file: Workflows-CI/MLProject/conda.yaml
+          activate-environment: ml_telco_churn_env
+          environment-file: MLProject/conda.yaml
 
-      - name: Install dependencies
+      - name: Install MLflow & DagsHub
         run: |
+          pip install --upgrade pip
           pip install mlflow dagshub
 
       - name: Run MLflow Project
-        working-directory: Workflow-CI/MLProject
+        working-directory: MLProject
         run: |
           mlflow run . | tee mlflow_output.txt
 
       - name: Get latest MLflow run id
-        working-directory: Workflow-CI/MLProject
+        working-directory: MLProject
         run: |
           RUN_ID=$(grep -oE "Run \(ID '([a-f0-9]+)'\)" mlflow_output.txt | head -n 1 | grep -oE "[a-f0-9]{32}")
           echo "RUN_ID=$RUN_ID" >> $GITHUB_ENV
           echo "Using RUN_ID=$RUN_ID"
 
       - name: Build Docker Image
-        working-directory: Workflow-CI/MLProject
+        working-directory: MLProject
         run: |
-          mlflow build docker -m runs:/$RUN_ID/model -n telco-churn-ci
+          mlflow build docker -m "runs:/$RUN_ID/model" -n telco-churn-ci
 
       - name: Login Docker Hub
         uses: docker/login-action@v3
