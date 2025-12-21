@@ -7,8 +7,8 @@ dependencies:
   - python=3.12.7
   - pip
   - pip:
-      - mlflow=2.10.0
-      - scikit-learn
+      - mlflow==2.19.0
+      - scikit-learn==1.5.2
       - pandas
       - numpy
       - dagshub
