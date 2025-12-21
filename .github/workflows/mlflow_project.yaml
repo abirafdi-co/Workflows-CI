@@ -40,12 +40,6 @@ jobs:
           MLFLOW_TRACKING_PASSWORD: ${{ secrets.DAGSHUB_TOKEN }}
         run: |
           mlflow run . | tee mlflow_output.txt
-          
-      - name: Upload mlflow_output.txt artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: mlflow-output
-          path: MLProject/mlflow_output.txt
 
       - name: Get latest MLflow run id
         shell: bash -l {0}
@@ -84,6 +78,27 @@ jobs:
           with open(os.environ["GITHUB_ENV"], "a") as f:
               f.write(f"RUN_ID={run_id}\n")
           PY
+
+      - name: Download MLflow model artifact
+        working-directory: MLProject
+        env:
+          MLFLOW_TRACKING_URI: ${{ env.MLFLOW_TRACKING_URI }}
+          DAGSHUB_USER_TOKEN: ${{ secrets.DAGSHUB_TOKEN }}
+          MLFLOW_TRACKING_USERNAME: ${{ secrets.DAGSHUB_USERNAME }}
+          MLFLOW_TRACKING_PASSWORD: ${{ secrets.DAGSHUB_TOKEN }}
+        run: |
+          mkdir -p artifact_out
+          mlflow artifacts download \
+            --run-id "$RUN_ID" \
+            --artifact-path model \
+            --dst-path artifact_out
+
+      - name: Upload trained model artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: trained-mlflow-model
+          path: MLProject/artifact_out/model
+          retention-days: 7
 
       - name: Build Docker Image
         shell: bash -l {0}
