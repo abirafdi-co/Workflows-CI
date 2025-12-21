@@ -1,13 +1,7 @@
-name: ML_Training_Project
+name: telco-churn-mlflow-project
 
 conda_env: conda.yaml
 
 entry_points:
   main:
-    parameters:
-      # Folder hasil preprocessing (berisi X_train.npy, X_test.npy, y_train.csv, y_test.csv)
-      data_path: {type: string, default: "telco_preprocessing"}
-      model_name: {type: string, default: "model"}
-      test_size: {type: float, default: 0.2}
-      random_state: {type: int, default: 42}
-    command: "python modelling.py --data_path {data_path} --model_name {model_name} --test_size {test_size} --random_state {random_state}"
+    command: "python modelling.py"
