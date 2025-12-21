@@ -7,7 +7,7 @@ on:
 
 env:
   MLFLOW_TRACKING_URI: https://dagshub.com/abirafdi-co/Membangun_model.mlflow
-  MLFLOW_EXPERIMENT_NAME: ci_retrain
+  MLFLOW_EXPERIMENT_NAME: telco_churn_ci
 
 jobs:
   train:
@@ -28,13 +28,16 @@ jobs:
         shell: bash -l {0}
         run: |
           pip install --upgrade pip
-          pip install mlflow dagshub scikit-learn pandas numpy
+          pip install mlflow dagshub
 
       - name: Run MLflow Project
         shell: bash -l {0}
         working-directory: MLProject
         env:
           MLFLOW_TRACKING_URI: ${{ env.MLFLOW_TRACKING_URI }}
+          DAGSHUB_USER_TOKEN: ${{ secrets.DAGSHUB_TOKEN }}
+          MLFLOW_TRACKING_USERNAME: ${{ secrets.DAGSHUB_USERNAME }}
+          MLFLOW_TRACKING_PASSWORD: ${{ secrets.DAGSHUB_TOKEN }}
         run: |
           mlflow run . | tee mlflow_output.txt
 
@@ -44,6 +47,9 @@ jobs:
         env:
           MLFLOW_TRACKING_URI: ${{ env.MLFLOW_TRACKING_URI }}
           MLFLOW_EXPERIMENT_NAME: ${{ env.MLFLOW_EXPERIMENT_NAME }}
+          DAGSHUB_USER_TOKEN: ${{ secrets.DAGSHUB_TOKEN }}
+          MLFLOW_TRACKING_USERNAME: ${{ secrets.DAGSHUB_USERNAME }}
+          MLFLOW_TRACKING_PASSWORD: ${{ secrets.DAGSHUB_TOKEN }}
         run: |
           python - << 'PY'
           import os
@@ -78,6 +84,9 @@ jobs:
         working-directory: MLProject
         env:
           MLFLOW_TRACKING_URI: ${{ env.MLFLOW_TRACKING_URI }}
+          DAGSHUB_USER_TOKEN: ${{ secrets.DAGSHUB_TOKEN }}
+          MLFLOW_TRACKING_USERNAME: ${{ secrets.DAGSHUB_USERNAME }}
+          MLFLOW_TRACKING_PASSWORD: ${{ secrets.DAGSHUB_TOKEN }}
         run: |
           echo "Building from RUN_ID=$RUN_ID"
           mlflow models build-docker --model-uri "runs:/$RUN_ID/model" --name "telco-churn-ci"
