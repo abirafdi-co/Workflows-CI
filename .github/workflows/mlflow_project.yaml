@@ -40,6 +40,12 @@ jobs:
           MLFLOW_TRACKING_PASSWORD: ${{ secrets.DAGSHUB_TOKEN }}
         run: |
           mlflow run . | tee mlflow_output.txt
+          
+      - name: Upload mlflow_output.txt artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mlflow-output
+          path: MLProject/mlflow_output.txt
 
       - name: Get latest MLflow run id
         shell: bash -l {0}
