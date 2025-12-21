@@ -18,7 +18,7 @@ jobs:
         with:
           auto-activate-base: false
           activate-environment: telco_churn_env
-          environment-file: Workflow-CI/MLProject/conda.yaml
+          environment-file: Workflows-CI/MLProject/conda.yaml
 
       - name: Install dependencies
         run: |
