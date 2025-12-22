@@ -1,1 +1,1 @@
-https://hub.docker.com/r/abii23/telco-churn-mlflow
+https://hub.docker.com/r/abii23/telco-churn-ci
